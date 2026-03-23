@@ -11,7 +11,7 @@ const DEFAULT_CONFIG = {
     useOnlyAutouseCards: true,
     eventDuration: 2,
     useEventWeights: true,
-    useCardWeights: false,
+    useCardWeights: true,
     currentEventTitle: "",
     currentEventDurationLeft: 0,
     alwaysIncludeCards: []
@@ -29,6 +29,10 @@ function getCardText(card) {
     if (card.text) return card.text;
     if (card.keys && card.keys.entry) return card.keys.entry;
     return null;
+}
+
+function getCardTitle(card) {
+    return card.title || (card.keys && card.keys.title) || '';
 }
 
 function setCardText(card, newText) {
@@ -82,6 +86,10 @@ function categorizeCards(allCards, useOnlyAutouse) {
     let eventCards = [];
     let regularCandidates = [];
     for (let card of allCards) {
+        let title = getCardTitle(card);
+        // Exclude any card with "Config" in its title (case‑insensitive)
+        if (title.toLowerCase().includes('config')) continue;
+
         if (isEventCard(card)) {
             eventCards.push(card);
         } else {
@@ -98,7 +106,7 @@ function formatAlwaysCardsBlock(cards) {
     if (!cards || cards.length === 0) return null;
     let entries = [];
     for (let card of cards) {
-        let title = card.title || (card.keys && card.keys.title) || 'Unknown';
+        let title = getCardTitle(card);
         let content = getCardText(card);
         if (content) {
             entries.push(`${title}: ${content};`);
@@ -109,14 +117,14 @@ function formatAlwaysCardsBlock(cards) {
 }
 
 function formatRandomCard(card) {
-    let title = card.title || (card.keys && card.keys.title) || 'Unknown';
+    let title = getCardTitle(card);
     let content = getCardText(card);
     if (!content) return null;
     return `[Use the following information to enrich the story if it fits the current context:\n${title}. ${content}]`;
 }
 
 function formatEventCard(card) {
-    let title = card.title || (card.keys && card.keys.title) || 'Unknown';
+    let title = getCardTitle(card);
     let content = getCardText(card);
     if (!content) return null;
     return `[The following event may occur: ${title}. ${content}. Describe it if there are no contradictions.]`;
@@ -130,7 +138,7 @@ function findConfigCard() {
     let allCards = getAllStoryCards();
     if (!allCards) return null;
     return allCards.find(card => {
-        let title = card.title || (card.keys && card.keys.title);
+        let title = getCardTitle(card);
         return title === CONFIG_CARD_TITLE;
     });
 }
@@ -149,7 +157,7 @@ function readConfigFromCard(card) {
             if (parsed.useOnlyAutouseCards !== undefined) config.useOnlyAutouseCards = parsed.useOnlyAutouseCards;
             if (parsed.eventDuration !== undefined) config.eventDuration = parsed.eventDuration;
             if (parsed.useEventWeights !== undefined) config.useEventWeights = parsed.useEventWeights;
-            if (parsed.useCardWeights !== undefined) config.useCardWeights = parsed.useCardWeights; // added
+            if (parsed.useCardWeights !== undefined) config.useCardWeights = parsed.useCardWeights;
             if (parsed.currentEventTitle !== undefined) config.currentEventTitle = parsed.currentEventTitle;
             if (parsed.currentEventDurationLeft !== undefined) config.currentEventDurationLeft = parsed.currentEventDurationLeft;
             if (parsed.alwaysIncludeCards !== undefined) config.alwaysIncludeCards = parsed.alwaysIncludeCards;
@@ -169,7 +177,7 @@ function readConfigFromCard(card) {
             if (key === 'useOnlyAutouseCards') config.useOnlyAutouseCards = (value.toLowerCase() === 'true');
             if (key === 'eventDuration') config.eventDuration = parseInt(value, 10);
             if (key === 'useEventWeights') config.useEventWeights = (value.toLowerCase() === 'true');
-            if (key === 'useCardWeights') config.useCardWeights = (value.toLowerCase() === 'true'); // added
+            if (key === 'useCardWeights') config.useCardWeights = (value.toLowerCase() === 'true');
             if (key === 'currentEventTitle') config.currentEventTitle = value;
             if (key === 'currentEventDurationLeft') config.currentEventDurationLeft = parseInt(value, 10);
             if (key === 'alwaysIncludeCards') {
@@ -189,7 +197,7 @@ function writeConfigToCard(card, config) {
         useOnlyAutouseCards: config.useOnlyAutouseCards,
         eventDuration: config.eventDuration,
         useEventWeights: config.useEventWeights,
-        useCardWeights: config.useCardWeights, // added
+        useCardWeights: config.useCardWeights,
         currentEventTitle: config.currentEventTitle,
         currentEventDurationLeft: config.currentEventDurationLeft,
         alwaysIncludeCards: config.alwaysIncludeCards
@@ -338,7 +346,7 @@ function StoryCardExtensionContext(text) {
     if (config.alwaysIncludeCards && config.alwaysIncludeCards.length > 0) {
         let cardMap = new Map();
         for (let card of allCards) {
-            let title = card.title || (card.keys && card.keys.title);
+            let title = getCardTitle(card);
             if (title) cardMap.set(title, card);
         }
         let foundCards = [];
@@ -396,7 +404,7 @@ function StoryCardExtensionContext(text) {
     else if (configEventTitle !== "" && (configEventTitle !== currentTitle || configEventDurationLeft !== state.currentEvent.duration)) {
         if (configEventTitle !== currentTitle) {
             let foundEvent = eventCards.find(c => {
-                let title = c.title || (c.keys && c.keys.title);
+                let title = getCardTitle(c);
                 return title === configEventTitle;
             });
             if (foundEvent) {
@@ -443,7 +451,7 @@ function StoryCardExtensionContext(text) {
             }
         }
     }
-    
+
     if (state.currentEvent.duration > 0) {
         if (state.currentEvent.text) {
             newText = newText + '\n\n' + state.currentEvent.text;
@@ -473,7 +481,7 @@ function StoryCardExtensionContext(text) {
             if (selectedCard) {
                 const eventBlock = formatEventCard(selectedCard);
                 if (eventBlock) {
-                    let title = selectedCard.title || (selectedCard.keys && selectedCard.keys.title) || 'Unknown';
+                    let title = getCardTitle(selectedCard);
                     let duration = getEventDuration(selectedCard, config.eventDuration);
                     state.currentEvent = {
                         text: eventBlock,
