@@ -11,6 +11,7 @@ const DEFAULT_CONFIG = {
     useOnlyAutouseCards: true,
     eventDuration: 2,
     useEventWeights: true,
+    useCardWeights: false,
     currentEventTitle: "",
     currentEventDurationLeft: 0,
     alwaysIncludeCards: []
@@ -148,6 +149,7 @@ function readConfigFromCard(card) {
             if (parsed.useOnlyAutouseCards !== undefined) config.useOnlyAutouseCards = parsed.useOnlyAutouseCards;
             if (parsed.eventDuration !== undefined) config.eventDuration = parsed.eventDuration;
             if (parsed.useEventWeights !== undefined) config.useEventWeights = parsed.useEventWeights;
+            if (parsed.useCardWeights !== undefined) config.useCardWeights = parsed.useCardWeights; // added
             if (parsed.currentEventTitle !== undefined) config.currentEventTitle = parsed.currentEventTitle;
             if (parsed.currentEventDurationLeft !== undefined) config.currentEventDurationLeft = parsed.currentEventDurationLeft;
             if (parsed.alwaysIncludeCards !== undefined) config.alwaysIncludeCards = parsed.alwaysIncludeCards;
@@ -167,6 +169,7 @@ function readConfigFromCard(card) {
             if (key === 'useOnlyAutouseCards') config.useOnlyAutouseCards = (value.toLowerCase() === 'true');
             if (key === 'eventDuration') config.eventDuration = parseInt(value, 10);
             if (key === 'useEventWeights') config.useEventWeights = (value.toLowerCase() === 'true');
+            if (key === 'useCardWeights') config.useCardWeights = (value.toLowerCase() === 'true'); // added
             if (key === 'currentEventTitle') config.currentEventTitle = value;
             if (key === 'currentEventDurationLeft') config.currentEventDurationLeft = parseInt(value, 10);
             if (key === 'alwaysIncludeCards') {
@@ -186,6 +189,7 @@ function writeConfigToCard(card, config) {
         useOnlyAutouseCards: config.useOnlyAutouseCards,
         eventDuration: config.eventDuration,
         useEventWeights: config.useEventWeights,
+        useCardWeights: config.useCardWeights, // added
         currentEventTitle: config.currentEventTitle,
         currentEventDurationLeft: config.currentEventDurationLeft,
         alwaysIncludeCards: config.alwaysIncludeCards
@@ -262,6 +266,43 @@ function getEventDuration(card, globalDuration) {
         }
     }
     return globalDuration;
+}
+
+function getCardWeight(card) {
+    let keys = card.keys;
+    if (!keys) return 1;
+
+    let triggerList = [];
+    if (Array.isArray(keys)) {
+        triggerList = keys;
+    } else if (typeof keys === 'string') {
+        triggerList = keys.split(/[ ,;]+/);
+    }
+
+    for (let token of triggerList) {
+        let match = token.match(/^weight=([\d.]+)$/i);
+        if (match) {
+            let w = parseFloat(match[1]);
+            return isNaN(w) ? 1 : Math.max(0, w);
+        }
+    }
+    return 1;
+}
+
+function selectCardByWeight(cards) {
+    if (!cards || cards.length === 0) return null;
+
+    let weights = cards.map(c => getCardWeight(c));
+    let totalWeight = weights.reduce((a,b) => a+b, 0);
+    if (totalWeight <= 0) return null;
+
+    let rand = Math.random() * totalWeight;
+    let accum = 0;
+    for (let i = 0; i < cards.length; i++) {
+        accum += weights[i];
+        if (rand < accum) return cards[i];
+    }
+    return cards[cards.length-1];
 }
 
 function selectEventByWeight(events) {
@@ -386,16 +427,23 @@ function StoryCardExtensionContext(text) {
     if (alwaysBlock) {
         newText = alwaysBlock + '\n\n' + newText;
     }
+
     if (regularCards.length > 0 && Math.random() < config.randomCardChance) {
-        const randomIndex = Math.floor(Math.random() * regularCards.length);
-        const card = regularCards[randomIndex];
-        const cardBlock = formatRandomCard(card);
-        if (cardBlock) {
-            newText = cardBlock + '\n\n' + newText;
+        let selectedCard = null;
+        if (config.useCardWeights) {
+            selectedCard = selectCardByWeight(regularCards);
+        } else {
+            const randomIndex = Math.floor(Math.random() * regularCards.length);
+            selectedCard = regularCards[randomIndex];
+        }
+        if (selectedCard) {
+            const cardBlock = formatRandomCard(selectedCard);
+            if (cardBlock) {
+                newText = cardBlock + '\n\n' + newText;
+            }
         }
     }
-
-    // Обработка активного события
+    
     if (state.currentEvent.duration > 0) {
         if (state.currentEvent.text) {
             newText = newText + '\n\n' + state.currentEvent.text;
