@@ -1,4 +1,4 @@
-# StoryCard Extension
+# StoryCard Extension (README OLD, I'M LAZY NOW)
 
 A simple script for AI Dungeon that fixes several major issues with Story Cards, which otherwise make the mechanic largely useless.
 
